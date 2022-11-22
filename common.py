@@ -406,7 +406,7 @@ class UnicodeWriter:
         if hasattr(file, 'write'):
             self.fp = file
         else:
-            self.fp = open(file, mode, encoding=self.encoding)
+            self.fp = open(file, mode, newline='\n', encoding=self.encoding)
         if self.unique:
             self.rows = adt.HashDict() # cache the rows that have already been written
             for row in csv.reader(open(self.fp.name, 'r', encoding=self.encoding)):
