@@ -478,7 +478,7 @@ def is_linux():
     return platform.system() == 'Linux'
 
 
-def command(cmd, cwd=None, timeout=15):
+def command(cmd, cwd=None, timeout=15, encoding='UTF-8'):
     """Run command and return the output
     
     cmd:
@@ -524,7 +524,7 @@ def command(cmd, cwd=None, timeout=15):
             time.sleep(0.01)
         # read process output from tempfile 
         temp_output.seek(0)
-        return temp_output.read()
+        return temp_output.read().decode(encoding)
 
 
 class ConsoleHandler(logging.StreamHandler):

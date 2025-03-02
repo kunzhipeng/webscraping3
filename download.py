@@ -352,7 +352,7 @@ class Download:
                 self.final_url = resp.history[-1].headers.get('Location', resp.history[-1].url)
             else:
                 self.final_url = resp.url
-            if not self.valid_response(resp.text, pattern):
+            if pattern and not self.valid_response(content, pattern):
                 # invalid result from download
                 self.invalid_content = content
                 content = None

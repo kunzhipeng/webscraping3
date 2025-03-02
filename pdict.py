@@ -173,7 +173,7 @@ class PersistentDict:
         """convert compressed pickled string from database back into an object
         """
         if value:
-            return pickle.loads(zlib.decompress(value))
+            return pickle.loads(zlib.decompress(value), encoding='bytes')
 
 
     def is_fresh(self, t):
@@ -490,7 +490,7 @@ class MongoQueue:
         while True:
             try:
                 # https://docs.mongodb.com/manual/reference/method/db.collection.findAndModify/
-                doc = conn.find_and_modify(query={}, sort=[('priority', pymongo.DESCENDING)], remove=True, limit=1)
+                doc = conn.find_and_modify(query={}, sort=[('priority', pymongo.DESCENDING)], remove=True)
             except Exception as e:
                 print('Failed to execute MongoDB find_and_modify command: {}'.format(str(e)))
                 time.sleep(1)
