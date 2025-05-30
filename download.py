@@ -165,6 +165,17 @@ class Download:
                     self.invalid_content = html
                     # invalid result from download
                     html = None
+                try:
+                    meta = self.cache.meta(key)
+                except KeyError:
+                    pass
+                else:
+                    self.final_url = meta.get('url', url)
+                    self.response_code = meta.get('response_code', '')
+                    self.response_headers = meta.get('response_headers', {})
+                    self.downloading_error = meta.get('downloading_error', None)
+                    self.error_content = meta.get('error_content', None)
+                    self.invalid_content = meta.get('invalid_content', None)
             except KeyError:
                 pass # have not downloaded yet
             else:
@@ -216,9 +227,19 @@ class Download:
         if self.cache and settings.write_cache:
             # cache results
             self.cache[key] = html
-            if url != self.final_url:
-                # cache what URL was redirected to
-                self.cache.meta(key, dict(url=self.final_url))
+            meta_dict = {}
+            if self.final_url:
+                meta_dict['url'] = self.final_url
+            meta_dict['response_code'] = self.response_code
+            meta_dict['response_headers'] = self.response_headers
+            if self.downloading_error:
+                meta_dict['downloading_error'] = self.downloading_error
+            if self.error_content:
+                meta_dict['error_content'] = self.error_content
+            if self.invalid_content:
+                meta_dict['invalid_content'] = self.invalid_content
+            if meta_dict:
+                self.cache.meta(key, meta_dict)
         
         # return default if no content
         return html or settings.default 
@@ -319,8 +340,8 @@ class Download:
             proxies = {'http': _proxy, 'https': _proxy}
 
         self.logger.info('Downloading %s %s' % (url, data or ''))
+        resp = None
         try:
-            resp = None
             if data is None:
                 # Get method
                 resp = self.session.get(url, headers=headers, proxies=proxies, timeout=(connect_timeout, read_timeout))
@@ -353,18 +374,20 @@ class Download:
             else:
                 content, self.final_url = None, url
         else:
-            self.response_code = str(resp.status_code)  
+            self.response_code = str(resp.status_code)
             content = resp.text if unicode else resp.content
-            self.response_headers = resp.headers
-            if resp.history:
-                self.final_url = resp.history[-1].headers.get('Location', resp.history[-1].url)
-            else:
-                self.final_url = resp.url
             if pattern and not self.valid_response(content, pattern):
                 # invalid result from download
                 self.invalid_content = content
                 content = None
                 self.logger.warning('Content did not match expected pattern: %s, %s' % (url, proxy))
+        
+        if not resp is None:
+            self.response_headers = dict(resp.headers)
+            if resp.history:
+                self.final_url = resp.history[-1].headers.get('Location', resp.history[-1].url)
+            else:
+                self.final_url = resp.url
         return content
 
 
