@@ -16,8 +16,6 @@ if not os.path.exists(state_dir):
         state_dir = ''
         #print 'Unable to create state directory:', e
 cache_file  = os.path.relpath(os.path.join(state_dir, 'cache.db')) # file to use for pdict cache
-queue_file  = os.path.relpath(os.path.join(state_dir, 'queue.db')) # file to use for pdict queue
-status_file = os.path.join(state_dir, 'status.js') # where to store state of crawl
 log_file    = os.path.join(state_dir, 'webscraping.log') # default logging file
 
 log_level = logging.INFO # logging level

@@ -352,13 +352,19 @@ def parse_proxy(proxy):
     '66.197.208.200'
     """
     fragments = adt.Bag()
+    proxy_type = 'http'
+    if '://' in proxy:
+        proxy_type, _, proxy = proxy.partition('://')
     match = re.match('((?P<username>\w+):(?P<password>\w+)@)?(?P<host>\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3})(:(?P<port>\d+))?', proxy)
+    if not match:
+        match = re.compile('((?P<username>\w+):(?P<password>\w+)@)?(?P<host>[a-z\d\.\-]+)(:(?P<port>\d+))?', re.IGNORECASE).match(proxy)        
     if match:
         groups = match.groupdict()
         fragments.username = groups.get('username') or ''
         fragments.password = groups.get('password') or ''
         fragments.host = groups.get('host')
         fragments.port = groups.get('port') or ''
+        fragments.type = proxy_type
     return fragments
 
 

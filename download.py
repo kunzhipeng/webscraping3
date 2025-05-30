@@ -10,6 +10,7 @@ import datetime
 import socket
 import threading
 import requests
+import curl_cffi
 import hashlib
 from urllib import parse as urlparse
 from . import adt
@@ -74,6 +75,8 @@ class Download:
         If it's True, one proxy IP will keep using the same User-agent, otherwise will use a random User-agent for each request.
     logger:
         Specify a logger instance.
+    impersonate:
+        whether to use curl_cffi to download content.
     keep_session:
         whether to use the same session(cookies manager)
     """
@@ -81,7 +84,8 @@ class Download:
     def __init__(self, cache=None, cache_file=None, read_cache=True, write_cache=True, use_network=True, 
             user_agent=None, timeout=30, delay=5, proxy=None, proxies=None, proxy_file=None, proxy_get_fun=None,
             headers=None, data=None, num_retries=0, num_redirects=0, num_caches=1, max_size=None, 
-            default='', unicode=False, pattern=None, acceptable_errors=None, keep_ip_ua=True, logger=None, keep_session=False, **kwargs):
+            default='', unicode=False, pattern=None, acceptable_errors=None, keep_ip_ua=True, logger=None, 
+            impersonate=None, keep_session=False, **kwargs):
         if isinstance(timeout, tuple):
             connect_timeout, read_timeout = timeout
         else:
@@ -118,6 +122,7 @@ class Download:
             pattern = pattern,
             keep_ip_ua = keep_ip_ua,
             acceptable_errors = acceptable_errors,
+            impersonate = impersonate,
             keep_session=keep_session,
             connect_timeout=connect_timeout,
             read_timeout=read_timeout
@@ -188,7 +193,7 @@ class Download:
                 self.proxy = self.get_proxy(settings.proxies)
             # crawl slowly for each domain to reduce risk of being blocked
             self.throttle(url, headers=settings.headers, delay=settings.delay, proxy=self.proxy) 
-            html = self.fetch(url, headers=settings.headers, data=settings.data, proxy=self.proxy, user_agent=settings.user_agent, pattern=settings.pattern, 
+            html = self.fetch(url, headers=settings.headers, data=settings.data, proxy=self.proxy, user_agent=settings.user_agent, pattern=settings.pattern, impersonate=settings.impersonate,
                               keep_session=settings.keep_session, connect_timeout=settings.connect_timeout, read_timeout=settings.read_timeout, acceptable_errors=settings.acceptable_errors, unicode=settings.unicode)
 
         if html:
@@ -288,11 +293,14 @@ class Download:
             return re.compile(pattern, re.DOTALL|re.IGNORECASE).search(html)
 
 
-    def fetch(self, url, headers=None, data=None, proxy=None, user_agent=None, pattern=None, keep_session=False, connect_timeout=30, read_timeout=30, acceptable_errors=None, unicode=False):
+    def fetch(self, url, headers=None, data=None, proxy=None, user_agent=None, pattern=None, impersonate=None, keep_session=False, connect_timeout=30, read_timeout=30, acceptable_errors=None, unicode=False):
         """Simply download the url and return the content
         """
         if not keep_session or self.session == None:
-            self.session = requests.Session()
+            if impersonate:
+                self.session = curl_cffi.Session(impersonate=impersonate)
+            else:
+                self.session = requests.Session()
             
         headers = headers or {}
         headers['User-Agent'] = user_agent or self.get_user_agent(proxy, headers)  
@@ -408,7 +416,7 @@ class Download:
                     self.logger.debug('Reloaded proxies from updated file.')
 
         
-    def save_as(self, url, filename=None, save_dir='images'):
+    def save_as(self, url, filename=None, save_dir='attachments', **kwargs):
         """Download url and save to disk
 
         url:
@@ -417,16 +425,16 @@ class Download:
             Output file to save to. If not set then will save to file based on URL
         """
         save_path = os.path.join(save_dir, filename or '%s.%s' % (hashlib.md5(url).hexdigest(), common.get_extension(url)))
-        if not os.path.exists(save_path):
-            # need to download
-            _bytes = self.get(url, num_redirects=0)
-            if _bytes:
-                if not os.path.exists(save_dir):
-                    os.makedirs(save_dir)
-                open(save_path, 'wb').write(_bytes)
-            else:
-                return None
-        return save_path
+        file_bytes = self.get(url, **kwargs)
+        if file_bytes:
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            with open(save_path, 'wb') as f:
+                f.write(file_bytes)
+            return save_path
+        else:
+            return None
+        
 
 
 def get_redirect(url, html):
