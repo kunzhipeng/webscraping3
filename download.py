@@ -82,7 +82,7 @@ class Download:
     """
 
     def __init__(self, cache=None, cache_file=None, read_cache=True, write_cache=True, use_network=True, 
-            user_agent=None, timeout=30, delay=5, proxy=None, proxies=None, proxy_file=None, proxy_get_fun=None,
+            user_agent=None, cookies=None, timeout=30, delay=5, proxy=None, proxies=None, proxy_file=None, proxy_get_fun=None,
             headers=None, data=None, num_retries=0, num_redirects=0, num_caches=1, max_size=None, 
             default='', unicode=False, pattern=None, acceptable_errors=None, keep_ip_ua=True, logger=None, 
             impersonate=None, keep_session=False, **kwargs):
@@ -111,6 +111,7 @@ class Download:
             proxy_file = proxy_file,
             proxy_get_fun = proxy_get_fun,
             user_agent = user_agent,
+            cookies = cookies,
             headers = headers,
             data = data,
             num_retries = num_retries,
@@ -179,13 +180,20 @@ class Download:
             except KeyError:
                 pass # have not downloaded yet
             else:
-                if not html and settings.num_retries >= 0:
-                    # try downloading again
-                    self.logger.debug('Redownloading')
-                    settings.num_retries -= 1
-                else:
+                if html:
                     # return previously downloaded content
-                    return html or settings.default 
+                    return html
+                else:
+                    if settings.acceptable_errors and self.response_code and self.response_code in settings.acceptable_errors:
+                        # acceptable error code, don't try downloading again
+                        return settings.default
+                    elif settings.num_retries >= 0:
+                        # try downloading again
+                        self.logger.debug('Redownloading')
+                        settings.num_retries -= 1
+                    else:
+                        return settings.default
+               
         if not settings.use_network:
             # only want previously cached content
             return settings.default 
@@ -204,7 +212,7 @@ class Download:
                 self.proxy = self.get_proxy(settings.proxies)
             # crawl slowly for each domain to reduce risk of being blocked
             self.throttle(url, headers=settings.headers, delay=settings.delay, proxy=self.proxy) 
-            html = self.fetch(url, headers=settings.headers, data=settings.data, proxy=self.proxy, user_agent=settings.user_agent, pattern=settings.pattern, impersonate=settings.impersonate,
+            html = self.fetch(url, headers=settings.headers, data=settings.data, proxy=self.proxy, user_agent=settings.user_agent, cookies=settings.cookies, pattern=settings.pattern, impersonate=settings.impersonate,
                               keep_session=settings.keep_session, connect_timeout=settings.connect_timeout, read_timeout=settings.read_timeout, acceptable_errors=settings.acceptable_errors, unicode=settings.unicode)
 
         if html:
@@ -314,7 +322,7 @@ class Download:
             return re.compile(pattern, re.DOTALL|re.IGNORECASE).search(html)
 
 
-    def fetch(self, url, headers=None, data=None, proxy=None, user_agent=None, pattern=None, impersonate=None, keep_session=False, connect_timeout=30, read_timeout=30, acceptable_errors=None, unicode=False):
+    def fetch(self, url, headers=None, data=None, proxy=None, user_agent=None, cookies=None, pattern=None, impersonate=None, keep_session=False, connect_timeout=30, read_timeout=30, acceptable_errors=None, unicode=False):
         """Simply download the url and return the content
         """
         if not keep_session or self.session == None:
@@ -344,12 +352,12 @@ class Download:
         try:
             if data is None:
                 # Get method
-                resp = self.session.get(url, headers=headers, proxies=proxies, timeout=(connect_timeout, read_timeout))
+                resp = self.session.get(url, headers=headers, cookies=cookies, proxies=proxies, verify=False, timeout=(connect_timeout, read_timeout))
             else:
                 # Post method
                 if 'Content-Type' not in headers:
                     headers['Content-Type'] = 'application/x-www-form-urlencoded'
-                resp = self.session.post(url, data=data, headers=headers, proxies=proxies, timeout=(connect_timeout, read_timeout))             
+                resp = self.session.post(url, data=data, headers=headers, cookies=cookies, proxies=proxies, verify=False, timeout=(connect_timeout, read_timeout))             
             if resp.status_code >= 400:
                 # HTTP ERROR
                 raise Exception('HTTP Error {}: {}'.format(resp.status_code, resp.reason))

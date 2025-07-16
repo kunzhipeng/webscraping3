@@ -476,6 +476,8 @@ class MongoQueue:
         conn = self.get_connection()
         while True:
             try:
+                # Avoid duplicate key error
+                doc.pop('_id', None)
                 conn.insert(doc)
             except Exception as e:
                 print('Failed to execute MongoDB update command: {}'.format(str(e)))
